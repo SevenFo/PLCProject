@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QTimer>
 #include <QXmlStreamWriter>
+#include <QXmlStreamReader>
 #include "hikvisonhandlercstyelfuncs.h"
 #include "newdatachecker.h"
 #include "thread"
@@ -23,6 +24,7 @@ public:
     HikvisonHandler(QObject *parent = nullptr);
     virtual ~HikvisonHandler();
 
+    void SetupCamera();//初始化相机、播放器
     bool SetupFaceDet();
     bool SetupPlayer();
     bool SetupRealPlay(WId winId = NULL);
@@ -30,6 +32,8 @@ public:
     bool GetSnapedFaceImg(QByteArray *dist);
     bool StartDecode();
 
+
+    QString host,port,userid,password;
 
 private:
     long userID;
@@ -45,6 +49,7 @@ private:
     QTimer *timerCheckHasNewSnapedImg;
     QThread *checkNewDataThread;
     NewDataChecker *newDataChecker;
+
 
 
 

@@ -41,18 +41,18 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
-        camerahandler.cpp
-        hkvsplayer.cpp
+#        camerahandler.cpp
+#        hkvsplayer.cpp
         preveiwwidget.cpp
         mainwindow.h
         DataType.h
         HCNetSDK.h
         DecodeCardSdk.h
         plaympeg4.h
-        camerahandler.h
+#        camerahandler.h
         mainwindow.ui
         preveiwwidget.h
-        hkvsplayer.h
+#        hkvsplayer.h
         WindowsPlayM4.h
         PlayM4.h
         hikvisonhandler.cpp

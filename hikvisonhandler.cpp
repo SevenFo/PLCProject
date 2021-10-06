@@ -1,6 +1,7 @@
 ﻿#include "hikvisonhandler.h"
 #include "opencv2/opencv.hpp"
-HikvisonHandler::HikvisonHandler(QObject *parent):QObject(parent),hasSetupRealPlay(false),runCheckStreamData(true),runCheckSnapedFaceImg(true),
+#include "preveiwwidget.h"
+HikvisonHandler::HikvisonHandler(QObject *parent):QObject(parent),playPort(0),hasSetupRealPlay(false),runCheckStreamData(true),runCheckSnapedFaceImg(true),
     runCheckDecodedImgData(true),runCheckAudioData(true)
 {
     TestCFun();
@@ -9,32 +10,10 @@ HikvisonHandler::HikvisonHandler(QObject *parent):QObject(parent),hasSetupRealPl
     snapedFaceImgData =  new QByteArray();
 
 
-    NET_DVR_Init();
-    NET_DVR_SetExceptionCallBack_V30(0,NULL,NULL,NULL);
-
-    NET_DVR_USER_LOGIN_INFO struLoginInfo;
-    memset(&struLoginInfo,0,sizeof(struLoginInfo));
-
-    strcpy_s(struLoginInfo.sDeviceAddress,"192.168.1.64");
-    struLoginInfo.wPort=8000;
-    strcpy_s(struLoginInfo.sUserName ,"admin"); //设备登录用户名
-    strcpy_s(struLoginInfo.sPassword,"hkvs123456"); //设备登录密码
-
-    NET_DVR_DEVICEINFO_V40 struDeviceInfo;
-    memset(&struDeviceInfo,0,sizeof(struDeviceInfo));
 
 
-    userID = NET_DVR_Login_V40(&struLoginInfo,&struDeviceInfo);
 
-    if(userID == -1)
-    {
-        qDebug()<<"login failed!";
-        return;
-    }
-    qDebug()<<"userid: "<<userID<<" device type:"<<struDeviceInfo.struDeviceV30.wDevType<<" chanNumber:"<<struDeviceInfo.struDeviceV30.byChanNum<<" chanStart"<<struDeviceInfo.struDeviceV30.byStartChan<<" subproto"<<struDeviceInfo.struDeviceV30.bySubProto;
-
-    qDebug()<<"setup camera success";
-
+//****************初始化解码器**********************
     if(!PlayM4_GetPort(&playPort))
     {
         qDebug()<<"get player port failed error code:"<<PlayM4_GetLastError(playPort);
@@ -64,23 +43,87 @@ HikvisonHandler::~HikvisonHandler()
     checkStreamDataThread->join();
 }
 
+
+void HikvisonHandler::SetupCamera()
+{
+    //*****************初始化相机SDK并登录*****************
+    NET_DVR_Init();
+    NET_DVR_SetExceptionCallBack_V30(0,NULL,NULL,NULL);
+
+    NET_DVR_USER_LOGIN_INFO struLoginInfo;
+    memset(&struLoginInfo,0,sizeof(struLoginInfo));
+    qDebug()<<"host:"<<this->host;
+    strcpy_s(struLoginInfo.sDeviceAddress,this->host.toLocal8Bit().data());
+    struLoginInfo.wPort=8000;
+    strcpy_s(struLoginInfo.sUserName ,this->userid.toLocal8Bit().data()); //设备登录用户名
+    strcpy_s(struLoginInfo.sPassword,this->password.toLocal8Bit().data()); //设备登录密码
+
+    NET_DVR_DEVICEINFO_V40 struDeviceInfo;//设备信息(同步登录即pLoginInfo中bUseAsynLogin为0时有效)
+    memset(&struDeviceInfo,0,sizeof(struDeviceInfo));
+
+
+    userID = NET_DVR_Login_V40(&struLoginInfo,&struDeviceInfo);
+
+    if(userID == -1)
+    {
+        qDebug()<<"login failed!";
+        return;
+    }
+    //    qDebug()<<"userid: "<<userID<<" device type:"<<struDeviceInfo.struDeviceV30.wDevType<<" chanNumber:"<<struDeviceInfo.struDeviceV30.byChanNum<<" chanStart"<<struDeviceInfo.struDeviceV30.byStartChan<<" subproto"<<struDeviceInfo.struDeviceV30.bySubProto;
+
+
+    // 获取设别编码能力参数
+    QFile infile = QFile("in.xml",this);
+    if(!infile.open(QIODevice::ReadOnly)){
+        qDebug()<<"open file failed";
+    }
+    QFile outfile = QFile("out.text",this);
+    outfile.open(QIODevice::WriteOnly);
+    char *poutBuffer = (char *)malloc(10240);
+    QByteArray inbuffer = QByteArray(infile.readAll());
+    qDebug()<<"inbuffer"<<QString(inbuffer.data());
+    qDebug()<<"in size:"<<inbuffer.size();
+
+    if(!NET_DVR_GetDeviceAbility(userID,DEVICE_ENCODE_ALL_ABILITY_V20,inbuffer.data(),inbuffer.size(),poutBuffer,10240))
+    {
+        qDebug()<<"NET_DVR_GetDeviceAbility error code:"<<NET_DVR_GetLastError();
+    }
+    else
+    {
+        outfile.write(poutBuffer);
+    }
+
+    infile.close();
+    outfile.close();
+
+
+    qDebug()<<"setup camera success";
+    return;
+}
+
+/*
+ * 初始化人脸检测的API
+ * */
 bool HikvisonHandler::SetupFaceDet()
 {
+    //需要先打开实时预览
     if(!hasSetupRealPlay)
     {
         qDebug()<<"pls setup real play firstly";
         return false;
     }
+    //注册回调消息回调函数
     if(!NET_DVR_SetDVRMessageCallBack_V50(1,&FaceDetAlarmCallback,NULL))
         return false;
 
+    //警示消息的参数
     NET_DVR_SETUPALARM_PARAM *struSetupAlarmParam = new NET_DVR_SETUPALARM_PARAM();
     memset(struSetupAlarmParam,0,struSetupAlarmParam->dwSize);
     struSetupAlarmParam->dwSize = sizeof(NET_DVR_SETUPALARM_PARAM);
     struSetupAlarmParam->byLevel = 0;
     struSetupAlarmParam->byFaceAlarmDetection = 0;
     struSetupAlarmParam->byAlarmTypeURL = 0;//二进制传输
-
+    //打开通道
     auto alarmChanHandler = NET_DVR_SetupAlarmChan_V41(userID,struSetupAlarmParam);
     delete struSetupAlarmParam;
 
@@ -89,48 +132,31 @@ bool HikvisonHandler::SetupFaceDet()
         qDebug()<<"SetupAlarmChan failed, error code:"<<NET_DVR_GetLastError();
         return false;
     }
-//    connect(this,&HikvisonHandler::HasNewSnapedFaceImg,[=](auto imgdata){
-//        qDebug()<<"new snaped face img take 100s"<<QThread::currentThreadId();
-//        qDebug()<<"imgs size:"<<snapedFaceImgs.size();
-//        QByteArray img = imgdata;
-//        qDebug()<<"img len:"<<img.size();
-//        img.clear();
-//        qDebug()<<"img len:"<<img.size();
-//        snapedFaceImgMutex.unlock();
-//        Sleep(100000);
-//        qDebug()<<"dealing end";
-//    });
+
     qDebug()<<"seted face det"<<QThread::currentThreadId();
-    checkSnapedFaceImgThread = new std::thread(std::bind(&HikvisonHandler::CheckSnapedFaceImg,this));
-
-//    connect(timerCheckHasNewSnapedImg,&QTimer::timeout,[=](){
-//        if(!havNewSnapedFaceImg)
-//        {
-//            return ;
-//        }
-//        snapedFaceImgData->clear();
-//        snapedFaceImgData->append((char *)snapedFaceImgBuff,snapedFaceImgBuffSize);
-//        havNewSnapedFaceImg = false;
-//        emit newSnapedFaceImg(snapedFaceImgData);//当有新的照片进来的时候发射信息
-//    });
-
-//    timerCheckHasNewSnapedImg->start(500);//0.5s检查 一次有没有新的人脸照片
+    checkSnapedFaceImgThread = new std::thread(std::bind(&HikvisonHandler::CheckSnapedFaceImg,this));//在新的线程中检查是否有新的人脸抓拍图像
     return true;
 }
-
+/*
+ * 开启实时预览
+ * param: 被设置为预览窗口的窗口句柄
+*/
 bool HikvisonHandler::SetupRealPlay(WId winId)
 {
-    NET_DVR_PREVIEWINFO struPreviewInfo;
-    struPreviewInfo.dwStreamType = 1;//子流
+    std::cout<<"setting up real play..."<<std::endl;
+
+    NET_DVR_PREVIEWINFO struPreviewInfo;//实时预览的参数
+    struPreviewInfo.dwStreamType = 1;//主流 大分辨率
     struPreviewInfo.dwLinkMode = 0;//TCP
-    struPreviewInfo.hPlayWnd = (HWND) winId;
+    struPreviewInfo.hPlayWnd = NULL;//解码显示的预览窗口
     struPreviewInfo.bBlocked = false;
     struPreviewInfo.lChannel = 1;
-    realPlayID = NET_DVR_RealPlay_V40(userID,&struPreviewInfo,&RealDataCallback);
+    realPlayID = NET_DVR_RealPlay_V40(userID,&struPreviewInfo,&RealDataCallback);//设置数据回调函数
     if(realPlayID == -1)
     {
+        std::cout<<"open real play failed, error code:"<<NET_DVR_GetLastError()<<std::endl;
         hasSetupRealPlay = false;
-//        return false;
+        return false;
     }
     else
     {
@@ -139,9 +165,6 @@ bool HikvisonHandler::SetupRealPlay(WId winId)
         return true;
     }
 
-
-
-    return true;
 }
 
 bool HikvisonHandler::StopRealPlay()
@@ -149,6 +172,7 @@ bool HikvisonHandler::StopRealPlay()
     auto result = NET_DVR_StopRealPlay(realPlayID);
     if(result == -1)
     {
+        std::cout<<"NET_DVR_StopRealPlay failed, error code:"<<NET_DVR_GetLastError()<<std::endl;
 //        hasSetupRealPlay = true;
         return false;
     }
@@ -170,18 +194,14 @@ bool HikvisonHandler::GetSnapedFaceImg(QByteArray *dist)
     return true;
 }
 
-bool HikvisonHandler::SetupPlayer()
-{
-    return true;
-}
-
 bool HikvisonHandler::StartDecode()
 {
-    checkStreamDataThread = new std::thread(std::bind(&HikvisonHandler::CheckStreamData,this));
+    checkStreamDataThread = new std::thread(std::bind(&HikvisonHandler::CheckStreamData,this));//检查是否有新的流数据，并对其进行处理
     checkAudioDataThread = new std::thread(std::bind(&HikvisonHandler::CheckAudioData,this));
     checkImgDataThread = new std::thread(std::bind(&HikvisonHandler::CheckImgData,this));
 
     connect(this,&HikvisonHandler::HasNewData,[=](char * data,size_t size){
+        //有新的数据接收到，填充到播放器中
        if(!PlayM4_InputData(playPort,(PBYTE)data,size))
        {
            qDebug()<<"input stream data failed error code::"<<PlayM4_GetLastError(playPort);
@@ -228,10 +248,12 @@ bool HikvisonHandler::StartDecode()
 
     hasStartDecode = true;
 }
-
+/*
+ * 检查是否有新的流数据，如有新的数据，则调用playerAPI对数据进行解码并显示
+ * */
 void HikvisonHandler::CheckStreamData()
 {
-    qDebug()<<"run thread:"<<QThread::currentThreadId() <<runCheckStreamData;
+    qDebug()<<"run CheckStreamData thread:"<<QThread::currentThreadId() <<runCheckStreamData;
     streamDataCondi.wakeAll();
     while(runCheckStreamData)
     {
@@ -239,7 +261,12 @@ void HikvisonHandler::CheckStreamData()
         checkerReady = true;
         streamNewDataCondi.wait(&dataMutex);//释放锁，等待新数据
         checkerReady = false;
-        emit HasNewData((char *)streamDataBuff,streamDataBuffSize);//得到新数据，发射信号
+//        emit HasNewData((char *)streamDataBuff,streamDataBuffSize);//得到新数据，发射信号
+        if(!PlayM4_InputData(playPort,(PBYTE)streamDataBuff,streamDataBuffSize))
+        {
+            qDebug()<<"input stream data failed error code::"<<PlayM4_GetLastError(playPort);
+            return;
+        }
         dataMutex.unlock();
         //此时，callback还没lock，checker unlock，没有人拥有mutex
         streamDataCondi.notify_one();

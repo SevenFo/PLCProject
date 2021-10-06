@@ -6,12 +6,12 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QLineEdit>
 #include <QFrame>
 #include <QTcpSocket>
 #include "HCNetSDK.h"
 class MainWindow;
 #include "mainwindow.h"
-#include "camerahandler.h"
 #include "hikvisonhandler.h"
 #include <QLabel>
 #include "opencv2/opencv.hpp"
@@ -39,11 +39,10 @@ private:
     QVBoxLayout _vBoxLayout;
     QHBoxLayout *_buttonLayout;
     QHBoxLayout *imgsLayout;
+    QHBoxLayout *lineEditLayout;
     QPushButton _pushbuttonDisplayPrev;
-    QPushButton *_pushbuttonSnap;
     QPushButton *_pushbuttonDec;
     QPushButton *pushbuttonConnect;
-    QPushButton *pushbuttonSnapV2;
     QPushButton *pushbuttonInf; //推断
     QPushButton *pushbuttonStartFaceDet;
     QLabel *labelSnapedFaceImg;//显示snape face img
@@ -53,9 +52,15 @@ private:
     QByteArray *infedRawPic;//推断出来的二进制图片数据
     std::vector<unsigned char> curruentImg;
     QImage *infedPic;//推断出来的图片数据
-    QFrame _frameDisplay;
+    QFrame _frameDisplay;//预览frame
 
-    CameraHandler _camera;
+    QLineEdit *lineeditIP;
+    QLineEdit *lineeditPort;
+    QLineEdit *lineeditUserID;
+    QLineEdit *lineeditPassword;
+    QPushButton *pushbuttonSetupCamera;
+
+
 
     int decodedImgW,infedImgW,snapedImgW;
     int decodedImgH,infedImgH,snapedImgH;
@@ -69,10 +74,8 @@ private:
     ImageSender *imgSender;
 
 
-    void ClickPushbuttonSnap();
     void ClickPushbuttonDec();
     void ClickPushbuttonConnect();
-    void ClickPushbuttonSnapV2();
     void ClickPushbuttonInf();
     void readyReadSocket();
     void DealNewSnapedFaceImg(QByteArray imgdata);

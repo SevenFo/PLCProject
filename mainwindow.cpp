@@ -9,22 +9,18 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-//    hkvisionHandler = new HikvisonHandler(this);
+    std::cout<<"begin mainwindows"<<std::endl;
 
     hboxlayoutPreviewAndInfedPics = new QHBoxLayout(ui->centralwidget);
     _widgetPreview = new PreveiwWidget(hkvsUserID,ui->centralwidget);
     _widgetPreview->resize(640,360);
-    labelInfedPic = new QLabel(ui->centralwidget);
-    labelInfedPic->setText("infed pic");
+//    labelInfedPic = new QLabel(ui->centralwidget);
+//    labelInfedPic->setText("infed pic");
 
     hboxlayoutPreviewAndInfedPics->addWidget(_widgetPreview);
-    hboxlayoutPreviewAndInfedPics->addWidget(labelInfedPic);
+//    hboxlayoutPreviewAndInfedPics->addWidget(labelInfedPic);
 
-//    this->layout()->addItem(hboxlayoutPreviewAndInfedPics);
-//    this->setLayout(hboxlayoutPreviewAndInfedPics);
-//    ui->centralwidget->setLayout(hboxlayoutPreviewAndInfedPics);
-
-    connect(_widgetPreview,&PreveiwWidget::RecvedNewInfedPic,this,&MainWindow::DisplayInfedPic);
+//    connect(_widgetPreview,&PreveiwWidget::RecvedNewInfedPic,this,&MainWindow::DisplayInfedPic);
 
 }
 

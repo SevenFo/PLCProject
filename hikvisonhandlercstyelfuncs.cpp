@@ -44,9 +44,11 @@ QWaitCondition decodedImgEmptyCondi;
 QWaitCondition audioDataFullCondi;
 QWaitCondition audioDataEmptyCondi;
 
+/*
+ * 实时预览数据的的回调函数，收到decoder函数的影响，当decoder速度比较慢的时候将被睡眠
+ * */
 void RealDataCallback(long lReanHandle, DWORD dwDataType,BYTE *pBuffer,DWORD dwBufSize, void *pUser)//实时预览的回调函数
 {
-//    streamDataBuff = (unsigned char*)malloc(1024);
     switch (dwDataType) {
     case NET_DVR_SYSHEAD:{
         qDebug()<<"system head date";
@@ -77,7 +79,6 @@ void RealDataCallback(long lReanHandle, DWORD dwDataType,BYTE *pBuffer,DWORD dwB
     case NET_DVR_PRIVATE_DATA:{qDebug()<<"private date";break;}
     default:{qDebug()<<"unknown date";break;}
     }
-//    qDebug()<<"real data call back end";
 }
 void FaceDetAlarmCallback(  LONG lCommand,NET_DVR_ALARMER *pAlarmer,char *pAlarmInfo,DWORD dwBufLen,void *pUser)
 {
